@@ -1,0 +1,3 @@
+
+nasm -f elf -o hello.o teste.asm
+ld -m elf_i386 -o hello hello.o

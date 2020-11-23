@@ -1,0 +1,30 @@
+section .text
+	mov eax, 3
+	mov ebx, 0
+	mov ecx, RESPONSE
+	mov edx, 4
+	int 80h
+	mov ecx, [RESPONSE]
+	sub ecx, 0x30
+	mov [RESPONSE], ecx
+	mov eax, [RESPONSE]
+	add eax, 7
+	mov [RESPONSE], eax
+	push eax
+	mov ecx, [RESPONSE]
+	add ecx, 0x30
+	mov [RESPONSE], ecx
+	mov eax, 4
+	mov ebx, 1
+	mov ecx, RESPONSE
+	mov edx, 4
+	int 80h
+	pop eax
+	mov eax, 1
+	mov ebx, 0
+	int 80h
+section.bss
+TESTE resb 4
+section.data
+TESTE1 dw 2
+TESTESTR dw "TEMPORARIO"
