@@ -23,12 +23,12 @@ vector<string> tradutor::traduz_para_ia32()
     // o registrado EAX vai ser usado como o acumuludor do assembly inventado
     
     vector<string> linhasTextoFinal;
-    vector<string> section_bss;
+    vector<pair<string, int>> section_bss;
     vector<string> section_data, section_data_arg;
     string linha_atual_traduzida;
     string linha;
     vector<string> tokens;
-    int flag_rotulo;
+    int flag_rotulo, flag_inputstr=0, flag_inputc=0, flag_outputstr = 0;
     ifstream MyFile("preprocess.txt");
     while(getline(MyFile, linha)) {
 
@@ -46,7 +46,12 @@ vector<string> tradutor::traduz_para_ia32()
                 else {
                     /* se for um rotulo de reserva de memoria, escrever na secao correta */
                     if (tokens[1].compare("SPACE") == 0) {
-                        section_bss.push_back(tokens[0]);
+                        
+                        if(tokens.size() >= 3)
+                            section_bss.push_back( make_pair(tokens[0], stoi(tokens[2])) );
+                        else
+                            section_bss.push_back( make_pair(tokens[0], 0) );
+                        
                     }
                     else {
                         section_data.push_back(tokens[0]);
@@ -57,15 +62,14 @@ vector<string> tradutor::traduz_para_ia32()
             
         }
         if( tokens[0+flag_rotulo].compare("SECTION")== 0 and tokens[1+flag_rotulo].compare("TEXT")== 0 ) {
-            linha_atual_traduzida += "section .text";
+            linha_atual_traduzida += "section .text\n";
+            linha_atual_traduzida += "global _start\n";
+            linha_atual_traduzida += "_start:";
         }
-        if( tokens[0+flag_rotulo].compare("ADD")== 0 ) {
-            if(isNumber(tokens[1+flag_rotulo]))
-                linha_atual_traduzida += "\tadd eax, " + tokens[1+flag_rotulo];
-            else
-                linha_atual_traduzida += "\tadd eax, [" + tokens[1+flag_rotulo] + "]";
+        if( tokens[0+flag_rotulo].compare("ADD") == 0 ) {
+            linha_atual_traduzida += "\tadd eax, [" + tokens[1+flag_rotulo] + "]";
         }
-        if( tokens[0+flag_rotulo].compare("SUB")== 0 ) {
+        if( tokens[0+flag_rotulo].compare("SUB") == 0 ) {
             linha_atual_traduzida += "\tsub eax, [" + tokens[1+flag_rotulo]+ "]";
         }
         if( tokens[0+flag_rotulo].compare("DIV")== 0 ) {
@@ -88,6 +92,7 @@ vector<string> tradutor::traduz_para_ia32()
             linha_atual_traduzida += "\tjz " + tokens[1+flag_rotulo];
         }
         if( tokens[0+flag_rotulo].compare("COPY")== 0 ) {
+            // testar
             linha_atual_traduzida += "\tmov " + tokens[2+flag_rotulo] +", " +tokens[1+flag_rotulo];
         }
         if( tokens[0+flag_rotulo].compare("LOAD")== 0 ) {
@@ -126,29 +131,124 @@ vector<string> tradutor::traduz_para_ia32()
             linha_atual_traduzida += "\tmov ebx, 0\n";
             linha_atual_traduzida += "\tint 80h";
         }
+        if( tokens[0+flag_rotulo].compare("C_OUTPUT")== 0 ) {
+            flag_outputstr = 1;
+            linha_atual_traduzida += "\tpush " + tokens[1+flag_rotulo]+"\n"; // guarda o valor do eax
+            linha_atual_traduzida += "\tpush 1\n"; // guarda o valor do eax
+            linha_atual_traduzida += "\tcall Escrever_String";
+        }
+        if( tokens[0+flag_rotulo].compare("C_INPUT")== 0 ) {
+            /* input de um numero inteiro */
+            flag_inputstr = 1;
+            linha_atual_traduzida += "\tpush " + tokens[1+flag_rotulo]+"\n"; // guarda o valor do eax
+            linha_atual_traduzida += "\tpush 1\n"; // guarda o valor do eax
+            linha_atual_traduzida += "\tcall Ler_String";
+        }
+        if( tokens[0+flag_rotulo].compare("S_INPUT") == 0 ) {
+            /* input de um numero inteiro */
+            /* Como eh necessario ter o tamanho como argumento, deve ser adicionada uma constante conntendo esse valor */
+            /* Formato : s_input 10, string_teste */
+            flag_inputstr = 1;
+            linha_atual_traduzida += "\tpush " + tokens[2+flag_rotulo]+"\n"; // guarda o valor do eax
+            linha_atual_traduzida += "\tpush " + tokens[1+flag_rotulo] + "\n"; // guarda o valor do eax
+            linha_atual_traduzida += "\tcall Ler_String";  
+        }
+
+        if( tokens[0+flag_rotulo].compare("S_OUTPUT")== 0 ) {
+            flag_outputstr = 1;
+            linha_atual_traduzida += "\tpush " + tokens[2+flag_rotulo]+"\n"; // guarda o valor do eax
+            linha_atual_traduzida += "\tpush " + tokens[1+flag_rotulo] + "\n"; // guarda o valor do eax
+            linha_atual_traduzida += "\tcall Escrever_String";
+            
+        }
+        
 
                 
         if( linha_atual_traduzida.size() != 0 )
             linhasTextoFinal.push_back(linha_atual_traduzida);
     }
+
+    if(flag_outputstr != 0) {
+        linha_atual_traduzida = "";
+        linha_atual_traduzida += "Escrever_String:\n";
+        linha_atual_traduzida += "\tpush ebp ;guarda o valor para pegar os parametros\n";
+        linha_atual_traduzida += "\tmov ebp, esp\n";
+        linha_atual_traduzida += "\tmov esi, dword [ebp+12]\n";
+        linha_atual_traduzida += "\tmov edi, [ebp + 8]\n";
+        linha_atual_traduzida += "\tmov eax, 4\n";
+        linha_atual_traduzida += "\tmov ebx, 1\n";
+        linha_atual_traduzida += "\tmov ecx, esi\n";
+        linha_atual_traduzida += "\tmov edx, edi\n"; // tamanho de 4 bytes para um numero inteiro
+        linha_atual_traduzida += "\tint 80h\n";
+        linha_atual_traduzida += "\tpop ebp\n"; // guarda o valor do eax
+        linha_atual_traduzida += "\tret";
+        linhasTextoFinal.push_back(linha_atual_traduzida);
+    }
+
+    if(flag_inputstr != 0) {
+        linha_atual_traduzida = "";
+        linha_atual_traduzida += "Ler_String:\n";
+        linha_atual_traduzida += "\tpush ebp ;guarda o valor para pegar os parametros\n";
+        linha_atual_traduzida += "\tmov ebp, esp\n";
+        linha_atual_traduzida += "\tmov esi, dword [ebp+12]\n";
+        linha_atual_traduzida += "\tmov edi, [ebp + 8]\n";
+        linha_atual_traduzida += "\t ;faz a leitura da string\n";
+        linha_atual_traduzida += "\tmov eax, 3\n";
+        linha_atual_traduzida += "\tmov ebx, 0\n";
+        linha_atual_traduzida += "\tmov ecx, esi\n";
+        linha_atual_traduzida += "\tmov edx, edi\n"; // tamanho de 4 bytes para um numero inteiro
+        linha_atual_traduzida += "\tint 80h\n";
+        linha_atual_traduzida += "\tadd eax, 0x30\n"; //enquanto so funcionar com inteiros de 1 digito
+        linha_atual_traduzida += "\tmov [input_string], eax\n";
+        linha_atual_traduzida += "\t ;imprime quantos caracteres foram lidos\n";
+        linha_atual_traduzida += "\tmov eax, 4\n";
+        linha_atual_traduzida += "\tmov ebx, 1\n";
+        linha_atual_traduzida += "\tmov ecx, read_string_msg1\n";
+        linha_atual_traduzida += "\tmov edx, str1_size\n";
+        linha_atual_traduzida += "\tint 80h\n";
+        linha_atual_traduzida += "\tmov eax, 4\n";
+        linha_atual_traduzida += "\tmov ebx, 1\n";
+        linha_atual_traduzida += "\tmov ecx, input_string\n"; // euqnato funcionar so para 1 digito, depois chamar subrotina
+        linha_atual_traduzida += "\tmov edx, 4\n";
+        linha_atual_traduzida += "\tint 80h\n";
+        linha_atual_traduzida += "\tmov eax, 4\n";
+        linha_atual_traduzida += "\tmov ebx, 1\n";
+        linha_atual_traduzida += "\tmov ecx, read_string_msg2\n";
+        linha_atual_traduzida += "\tmov edx, str2_size\n";
+        linha_atual_traduzida += "\tint 80h\n";
+        linha_atual_traduzida += "\tpop ebp\n"; // guarda o valor do eax
+        linha_atual_traduzida += "\tret";
+        linhasTextoFinal.push_back(linha_atual_traduzida);
+    }
+
     // lembrar de no final adicionar .data e .bss
     if( section_bss.size() != 0) {
-        linhasTextoFinal.push_back("section.bss");
+        linhasTextoFinal.push_back("\nsection .bss");
         for(int i=0; i<section_bss.size(); i++) {
             linha_atual_traduzida = "";
-            section_bss[i].pop_back();
-            linha_atual_traduzida += section_bss[i] + " resb 4";
+            section_bss[i].first.pop_back();
+            linha_atual_traduzida += section_bss[i].first + " resb " + to_string(section_bss[i].second *4 + 4);
             linhasTextoFinal.push_back(linha_atual_traduzida);
         }   
     }
+    if(flag_inputstr != 0) {
+        // adiciona ao final da secao bss
+        linhasTextoFinal.push_back("input_string resb 4");
+    }
     if( section_data.size() != 0) {
-        linhasTextoFinal.push_back("section.data");
+        linhasTextoFinal.push_back("\nsection .data");
         for(int i=0; i<section_data.size(); i++) {
             linha_atual_traduzida = "";
             section_data[i].pop_back();
             linha_atual_traduzida += section_data[i] + " dw " + section_data_arg[i];
             linhasTextoFinal.push_back(linha_atual_traduzida);
         }   
+    }
+    if(flag_inputstr != 0) {
+        linhasTextoFinal.push_back("read_string_msg1 db 'Foram lidos '");
+        linhasTextoFinal.push_back("str1_size EQU $-read_string_msg1");
+        linhasTextoFinal.push_back("read_string_msg2 db ' Caracteres', 0dh, 0ah");
+        linhasTextoFinal.push_back("str2_size EQU $-read_string_msg2");
     }
     return linhasTextoFinal;
 }

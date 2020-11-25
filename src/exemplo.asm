@@ -1,11 +1,10 @@
 section text
-    input response
-    load response + 3
-    add 7
-    store response
-    output response
+    s_input 10, response
+    s_output 10, response
+    c_input response2
+    c_output response2
     stop
 section data
-teste: space
-teste1: const 2
-testestr: const "temporario"
+response: space 12
+response2: space 1
+um: const 1
