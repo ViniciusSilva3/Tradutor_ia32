@@ -121,17 +121,12 @@ vector<string> tradutor::traduz_para_ia32()
             linha_atual_traduzida += "\tmov [" + tokens[1+flag_rotulo] + "], ebx\n";
         }
         if( tokens[0+flag_rotulo].compare("OUTPUT")== 0 ) {
-            linha_atual_traduzida += "\tpush eax\n"; // guarda o valor do eax
-            linha_atual_traduzida += "\tmov ecx, ["+tokens[1+flag_rotulo]+"]\n";
-            linha_atual_traduzida += "\tadd ecx, 0x30\n";
-            linha_atual_traduzida += "\tmov ["+tokens[1+flag_rotulo]+"], ecx\n";
-
-            linha_atual_traduzida += "\tmov eax, 4\n";
-            linha_atual_traduzida += "\tmov ebx, 1\n";
-            linha_atual_traduzida += "\tmov ecx, " + tokens[1+flag_rotulo] +"\n";
-            linha_atual_traduzida += "\tmov edx, 4\n"; // tamanho de 4 bytes para um numero inteiro
-            linha_atual_traduzida += "\tint 80h\n";
-            linha_atual_traduzida += "\tpop eax"; // guarda o valor do eax
+            flag_output_int = 1;
+            linha_atual_traduzida += "\tpush " + tokens[1+flag_rotulo]+"\n" ; // guarda o valor do eax
+            
+            linha_atual_traduzida += "\tcall escreve_inteiro\n";
+            
+            
         }
         if( tokens[0+flag_rotulo].compare("STOP")== 0 ) {
             linha_atual_traduzida += "\tmov eax, 1\n";
@@ -188,6 +183,10 @@ vector<string> tradutor::traduz_para_ia32()
         linha_atual_traduzida = escreve_input_int();
         linhasTextoFinal.push_back(linha_atual_traduzida);
     }
+    if(flag_output_int) {
+        linha_atual_traduzida = escreve_output_int();
+        linhasTextoFinal.push_back(linha_atual_traduzida);
+    }
 
     // lembrar de no final adicionar .data e .bss
     if( section_bss.size() != 0) {
@@ -202,13 +201,14 @@ vector<string> tradutor::traduz_para_ia32()
     if(flag_inputstr != 0) {
         // adiciona ao final da secao bss
         linhasTextoFinal.push_back("input_string resb 4");
+        linhasTextoFinal.push_back("imprime_char resb 1");
     }
     if( section_data.size() != 0) {
         linhasTextoFinal.push_back("\nsection .data");
         for(int i=0; i<section_data.size(); i++) {
             linha_atual_traduzida = "";
             section_data[i].pop_back();
-            linha_atual_traduzida += section_data[i] + " dw " + section_data_arg[i];
+            linha_atual_traduzida += section_data[i] + " dq " + section_data_arg[i];
             linhasTextoFinal.push_back(linha_atual_traduzida);
         }   
     }
@@ -217,6 +217,11 @@ vector<string> tradutor::traduz_para_ia32()
         linhasTextoFinal.push_back("str1_size EQU $-read_string_msg1");
         linhasTextoFinal.push_back("read_string_msg2 db ' Caracteres', 0dh, 0ah");
         linhasTextoFinal.push_back("str2_size EQU $-read_string_msg2");
+    }
+    if(flag_output_int) {
+        linhasTextoFinal.push_back("new_line db 0dh, 0ah");
+        linhasTextoFinal.push_back("new_line_size EQU $-new_line");
+
     }
     return linhasTextoFinal;
 }
@@ -342,5 +347,108 @@ linha_nova += "troca_negativo:\n";
 	linha_nova += "\timul ebx\n";
 	linha_nova += "\tmov ebx, eax\n";
 	linha_nova += "\tjmp fim_le_inteiro";
+    return linha_nova;
+}
+
+string tradutor::escreve_output_int(void)
+{
+    string linha_nova;
+    linha_nova = "";
+    linha_nova += "escreve_inteiro:\n";
+	linha_nova += "\tpush ebp ;guarda o valor para pegar os parametros\n";
+	linha_nova += "\t; edx vai ser usado para imprimir\n";
+	linha_nova += "\tmov ebp, esp\n";
+	linha_nova += "\tmov edx, dword [ebp+8]\n";
+	linha_nova += "\t; esi vai segurar o numero que vai ser impresso\n";
+	linha_nova += "\tmov esi, dword[edx]\n";
+	linha_nova += "\tmov edx, 0\n";
+	linha_nova += "\tcmp esi, 0\n";
+	linha_nova += "\t; ebx vai ser o divisor para pegar os algaritmos separados\n";
+	linha_nova += "\tjl imprime_negativo\n";
+	linha_nova += "\tjmp verifica_digito\n";
+linha_nova += "calcula_impressao:\n";
+	linha_nova += "\t; carrega o valor para pegar o digito mais significativo\n";
+	linha_nova += "\tmov eax, esi\n";
+	linha_nova += "\t; divide pelo valor de ebx (pegar centena, dezena, unidade)\n";
+	linha_nova += "\tdiv ebx\n";
+	linha_nova += "; eax vai estar armazenando o digito\n";
+	linha_nova += "\tpush ebx\n";
+	linha_nova += "\tpush eax\n";
+	linha_nova += "\tcall imprime_int\n";
+	linha_nova += "; apos imprimir um digito, recupera o valor de eax\n";
+	linha_nova += "\tpop eax\n";
+	linha_nova += "; recupera ebx para saber se esta em dezena, unidade...\n";
+	linha_nova += "\tpop ebx\n";
+	linha_nova += "; multiplica pela dezena, centena...\n";
+	linha_nova += "\tmul ebx\n";
+	linha_nova += "; subtrai o digito ja escrito\n";
+	linha_nova += "\tsub esi, eax\n";
+	linha_nova += "; se ja tiver escrito todos os digitos sai\n";
+	linha_nova += "\tjz fim\n";
+	linha_nova += "; divide por 10 ebx\n";
+	linha_nova += "\tmov eax, ebx\n";
+	linha_nova += "\tmov ebx, 10\n";
+	linha_nova += "\tdiv ebx\n";
+	linha_nova += "\tmov ebx, eax\n";
+	linha_nova += "\tjmp calcula_impressao\n";
+
+linha_nova += "imprime_int:\n";
+	linha_nova += "\tpush ebp ;guarda o valor para pegar os parametros\n";
+	linha_nova += "; edx vai ser usado para imprimir\n";
+	linha_nova += "\tmov ebp, esp\n";
+	linha_nova += "\tmov edx, dword [ebp+8]\n";
+	linha_nova += "\tadd edx, 0x30\n";
+	linha_nova += "\tmov [imprime_char], edx\n";
+	linha_nova += "\tmov eax, 4\n";
+	linha_nova += "\tmov ebx, 1\n";
+	linha_nova += "\tmov ecx, imprime_char\n";
+	linha_nova += "\tmov edx, 1\n";
+	linha_nova += "\tint 80h\n";
+	linha_nova += "\tpop ebp\n";
+	linha_nova += "\tret\n";
+linha_nova += "imprime_negativo:\n";
+	linha_nova += "; multiplica esi por -1, para ficar positivo\n";
+	linha_nova += "\tmov eax, esi\n";
+	linha_nova += "\tmov esi, -1\n";
+	linha_nova += "\timul esi\n";
+	linha_nova += "\tmov esi, eax\n";
+	linha_nova += "; imprime o char -\n";
+	linha_nova += "\tmov edx, 45\n";
+	linha_nova += "\tmov [imprime_char], edx\n";
+	linha_nova += "\tmov eax, 4\n";
+	linha_nova += "\tmov ebx, 1\n";
+	linha_nova += "\tmov ecx, imprime_char\n";
+	linha_nova += "\tmov edx, 1\n";
+	linha_nova += "\tint 80h\n";
+	linha_nova += "; deve corrigir o edx para 0 para nao ter problemas na multiplicacao\n";
+	linha_nova += "\tmov edx, 0\n";
+	linha_nova += "; verifica quantos digitos o numero tem\n";
+	linha_nova += "\tjmp verifica_digito\n";
+
+linha_nova += "verifica_digito:\n";
+	linha_nova += "\tcmp esi, 100\n";
+	linha_nova += "\tjae numero_centena\n";
+	linha_nova += "; se nao for maior ou igual comparar com 10\n";
+	linha_nova += "\tcmp esi, 10\n";
+	linha_nova += "\tjae numero_dezena \n";
+	linha_nova += "; se nao for so pode ser unidade\n";
+	linha_nova += "\tjmp numero_unidade\n";
+linha_nova += "numero_centena:\n";
+	linha_nova += "\tmov ebx, 100\n";
+	linha_nova += "\tjmp calcula_impressao\n";
+linha_nova += "numero_dezena:\n";
+	linha_nova += "\tmov ebx, 10\n";
+	linha_nova += "\tjmp calcula_impressao\n";
+linha_nova += "numero_unidade:\n";
+	linha_nova += "\tmov ebx, 1\n";
+	linha_nova += "\tjmp calcula_impressao\n";
+linha_nova += "fim:\n";
+	linha_nova += "\tmov eax, 4\n";
+	linha_nova += "\tmov ebx, 1\n";
+	linha_nova += "\tmov ecx, new_line\n";
+	linha_nova += "\tmov edx, new_line_size\n";
+	linha_nova += "\tint 80h\n";
+	linha_nova += "\tpop ebp\n";
+	linha_nova += "ret";
     return linha_nova;
 }

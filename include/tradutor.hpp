@@ -15,5 +15,6 @@ class tradutor {
         string escreve_output_string(void);
         string escreve_input_int(void);
         string escreve_input_string(void);
+        string escreve_output_int(void);
 };
 #endif

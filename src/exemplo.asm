@@ -1,6 +1,6 @@
 section text
     input response
-    input response2
+    output response
     stop
 section data
 response: space 12
