@@ -28,7 +28,7 @@ vector<string> tradutor::traduz_para_ia32()
     string linha_atual_traduzida;
     string linha;
     vector<string> tokens;
-    int flag_rotulo, flag_inputstr=0, flag_inputc=0, flag_outputstr = 0;
+    int flag_rotulo, flag_inputstr=0, flag_inputc=0, flag_outputstr = 0, flag_input_int=0, flag_output_int =0;
     ifstream MyFile("preprocess.txt");
     while(getline(MyFile, linha)) {
 
@@ -103,15 +103,22 @@ vector<string> tradutor::traduz_para_ia32()
         }
         if( tokens[0+flag_rotulo].compare("INPUT")== 0 ) {
             /* input de um numero inteiro */
+            flag_input_int = 1;
+            linha_atual_traduzida += "; le o numero em formato de string\n";
             linha_atual_traduzida += "\tmov eax, 3\n";
             linha_atual_traduzida += "\tmov ebx, 0\n";
             linha_atual_traduzida += "\tmov ecx, " + tokens[1+flag_rotulo] + "\n";
-            linha_atual_traduzida += "\tmov edx, 4\n"; // tamanho de 4 bytes para um numero inteiro
+            linha_atual_traduzida += "\tmov edx, 5\n"; // tamanho de 4 bytes para um numero inteiro
             linha_atual_traduzida += "\tint 80h\n";
             // O numero vai estar com seu valor na tabelo ASCII, deve ser corrigido
-            linha_atual_traduzida += "\tmov ecx, [" +tokens[1+flag_rotulo]+ "]\n";
-            linha_atual_traduzida += "\tsub ecx, 0x30\n";
-            linha_atual_traduzida += "\tmov [" + tokens[1+flag_rotulo] +"], ecx";
+            linha_atual_traduzida += "\tmov esi, 1\n";
+            linha_atual_traduzida += "; empurrar eax para ver a quantidade de iteracoes\n";
+            linha_atual_traduzida += "\tsub eax, 1\n";
+            linha_atual_traduzida += "\tpush eax\n";
+            linha_atual_traduzida += "\tpush " + tokens[1+flag_rotulo] +"; empurra a posicao de memoria onde o numero esta armazenado\n";
+            linha_atual_traduzida += "\tcall le_inteiro\n";
+            linha_atual_traduzida += "; Recupera o numero em inteiro e escreve no lugar certo\n";
+            linha_atual_traduzida += "\tmov [" + tokens[1+flag_rotulo] + "], ebx\n";
         }
         if( tokens[0+flag_rotulo].compare("OUTPUT")== 0 ) {
             linha_atual_traduzida += "\tpush eax\n"; // guarda o valor do eax
@@ -168,56 +175,17 @@ vector<string> tradutor::traduz_para_ia32()
             linhasTextoFinal.push_back(linha_atual_traduzida);
     }
 
-    if(flag_outputstr != 0) {
-        linha_atual_traduzida = "";
-        linha_atual_traduzida += "Escrever_String:\n";
-        linha_atual_traduzida += "\tpush ebp ;guarda o valor para pegar os parametros\n";
-        linha_atual_traduzida += "\tmov ebp, esp\n";
-        linha_atual_traduzida += "\tmov esi, dword [ebp+12]\n";
-        linha_atual_traduzida += "\tmov edi, [ebp + 8]\n";
-        linha_atual_traduzida += "\tmov eax, 4\n";
-        linha_atual_traduzida += "\tmov ebx, 1\n";
-        linha_atual_traduzida += "\tmov ecx, esi\n";
-        linha_atual_traduzida += "\tmov edx, edi\n"; // tamanho de 4 bytes para um numero inteiro
-        linha_atual_traduzida += "\tint 80h\n";
-        linha_atual_traduzida += "\tpop ebp\n"; // guarda o valor do eax
-        linha_atual_traduzida += "\tret";
+    if(flag_outputstr) {
+        linha_atual_traduzida = escreve_output_string();
         linhasTextoFinal.push_back(linha_atual_traduzida);
     }
 
-    if(flag_inputstr != 0) {
-        linha_atual_traduzida = "";
-        linha_atual_traduzida += "Ler_String:\n";
-        linha_atual_traduzida += "\tpush ebp ;guarda o valor para pegar os parametros\n";
-        linha_atual_traduzida += "\tmov ebp, esp\n";
-        linha_atual_traduzida += "\tmov esi, dword [ebp+12]\n";
-        linha_atual_traduzida += "\tmov edi, [ebp + 8]\n";
-        linha_atual_traduzida += "\t ;faz a leitura da string\n";
-        linha_atual_traduzida += "\tmov eax, 3\n";
-        linha_atual_traduzida += "\tmov ebx, 0\n";
-        linha_atual_traduzida += "\tmov ecx, esi\n";
-        linha_atual_traduzida += "\tmov edx, edi\n"; // tamanho de 4 bytes para um numero inteiro
-        linha_atual_traduzida += "\tint 80h\n";
-        linha_atual_traduzida += "\tadd eax, 0x30\n"; //enquanto so funcionar com inteiros de 1 digito
-        linha_atual_traduzida += "\tmov [input_string], eax\n";
-        linha_atual_traduzida += "\t ;imprime quantos caracteres foram lidos\n";
-        linha_atual_traduzida += "\tmov eax, 4\n";
-        linha_atual_traduzida += "\tmov ebx, 1\n";
-        linha_atual_traduzida += "\tmov ecx, read_string_msg1\n";
-        linha_atual_traduzida += "\tmov edx, str1_size\n";
-        linha_atual_traduzida += "\tint 80h\n";
-        linha_atual_traduzida += "\tmov eax, 4\n";
-        linha_atual_traduzida += "\tmov ebx, 1\n";
-        linha_atual_traduzida += "\tmov ecx, input_string\n"; // euqnato funcionar so para 1 digito, depois chamar subrotina
-        linha_atual_traduzida += "\tmov edx, 4\n";
-        linha_atual_traduzida += "\tint 80h\n";
-        linha_atual_traduzida += "\tmov eax, 4\n";
-        linha_atual_traduzida += "\tmov ebx, 1\n";
-        linha_atual_traduzida += "\tmov ecx, read_string_msg2\n";
-        linha_atual_traduzida += "\tmov edx, str2_size\n";
-        linha_atual_traduzida += "\tint 80h\n";
-        linha_atual_traduzida += "\tpop ebp\n"; // guarda o valor do eax
-        linha_atual_traduzida += "\tret";
+    if(flag_inputstr) {
+        linha_atual_traduzida = escreve_input_string();
+        linhasTextoFinal.push_back(linha_atual_traduzida);
+    }
+    if(flag_input_int) {
+        linha_atual_traduzida = escreve_input_int();
         linhasTextoFinal.push_back(linha_atual_traduzida);
     }
 
@@ -262,4 +230,117 @@ void tradutor::escreve_codigo_traduzido(vector<string> texto)
     }
     TextoPreprocessado.close();
     
+}
+
+string tradutor::escreve_output_string(void)
+{
+    string linha_nova;
+    linha_nova = "";
+    linha_nova += "Escrever_String:\n";
+    linha_nova += "\tpush ebp ;guarda o valor para pegar os parametros\n";
+    linha_nova += "\tmov ebp, esp\n";
+    linha_nova += "\tmov esi, dword [ebp+12]\n";
+    linha_nova += "\tmov edi, [ebp + 8]\n";
+    linha_nova += "\tmov eax, 4\n";
+    linha_nova += "\tmov ebx, 1\n";
+    linha_nova += "\tmov ecx, esi\n";
+    linha_nova += "\tmov edx, edi\n"; // tamanho de 4 bytes para um numero inteiro
+    linha_nova += "\tint 80h\n";
+    linha_nova += "\tpop ebp\n"; // guarda o valor do eax
+    linha_nova += "\tret";
+    return linha_nova;
+}
+
+string tradutor::escreve_input_string(void)
+{
+    string linha_nova;
+    linha_nova = "";
+        linha_nova += "Ler_String:\n";
+        linha_nova += "\tpush ebp ;guarda o valor para pegar os parametros\n";
+        linha_nova += "\tmov ebp, esp\n";
+        linha_nova += "\tmov esi, dword [ebp+12]\n";
+        linha_nova += "\tmov edi, [ebp + 8]\n";
+        linha_nova += "\t ;faz a leitura da string\n";
+        linha_nova += "\tmov eax, 3\n";
+        linha_nova += "\tmov ebx, 0\n";
+        linha_nova += "\tmov ecx, esi\n";
+        linha_nova += "\tmov edx, edi\n"; // tamanho de 4 bytes para um numero inteiro
+        linha_nova += "\tint 80h\n";
+        linha_nova += "\tadd eax, 0x30\n"; //enquanto so funcionar com inteiros de 1 digito
+        linha_nova += "\tmov [input_string], eax\n";
+        linha_nova += "\t ;imprime quantos caracteres foram lidos\n";
+        linha_nova += "\tmov eax, 4\n";
+        linha_nova += "\tmov ebx, 1\n";
+        linha_nova += "\tmov ecx, read_string_msg1\n";
+        linha_nova += "\tmov edx, str1_size\n";
+        linha_nova += "\tint 80h\n";
+        linha_nova += "\tmov eax, 4\n";
+        linha_nova += "\tmov ebx, 1\n";
+        linha_nova += "\tmov ecx, input_string\n"; // euqnato funcionar so para 1 digito, depois chamar subrotina
+        linha_nova += "\tmov edx, 4\n";
+        linha_nova += "\tint 80h\n";
+        linha_nova += "\tmov eax, 4\n";
+        linha_nova += "\tmov ebx, 1\n";
+        linha_nova += "\tmov ecx, read_string_msg2\n";
+        linha_nova += "\tmov edx, str2_size\n";
+        linha_nova += "\tint 80h\n";
+        linha_nova += "\tpop ebp\n"; // guarda o valor do eax
+        linha_nova += "\tret";
+        return linha_nova;
+}
+
+string tradutor::escreve_input_int(void)
+{
+    string linha_nova;
+    linha_nova = "";
+    linha_nova += "le_inteiro:\n";
+	linha_nova += "\tpush ebp ;guarda o valor para pegar os parametros\n";
+	linha_nova += "; deve receber a quantidade de iteracoes em edi\n";
+	linha_nova += "\tmov ebp, esp\n";
+	linha_nova += "\tmov edx, dword [ebp+8]\n";
+	linha_nova += "\tmov edi, dword[ebp+12]\n";
+	linha_nova += "; deve receber a quantidade de iteracoes em edi\n";
+	
+	linha_nova += "; desloca para a leitura do ultimo digito\n";
+	linha_nova += "\tsub eax, 1\n";
+	linha_nova += "\tadd edx, eax\n";
+	
+	linha_nova += "; esi vai armazenar se eh centena, dezena ou unidade\n";
+linha_nova += "calcula_num:\n";
+	linha_nova += "; le o primeiro digito (mais significativo)\n";
+	linha_nova += "\tpush edx\n";
+	linha_nova += "\tmovzx eax, byte [edx]\n";
+	linha_nova += "; verifica se o numero eh negativo\n";
+	linha_nova += "\tcmp eax, 0x2d\n";
+	linha_nova += "; decidir o que fazer se for negativo\n";
+	linha_nova += "\tje troca_negativo\n";
+	linha_nova += "\tmov ecx, eax";
+	linha_nova += "; transforma para o valor inteiro\n";
+	linha_nova += "\tsub ecx, 0x30\n";
+	linha_nova += "\tmov eax, ecx\n";
+	linha_nova += "\tmul esi\n";
+	linha_nova += "; ebx vai armazenar o numero inteiro final\n";
+	linha_nova += "\tadd ebx, eax\n";
+	linha_nova += "; multiplica esi por 10\n";
+	linha_nova += "\tmov eax, 10\n";
+	linha_nova += "\tmul esi\n";
+	linha_nova += "\tmov esi, eax\n";
+	linha_nova += "; recupera o valor da posicao de memoria e ajusta de acordo com a iteracao\n";
+	linha_nova += "\tpop edx\n";
+	linha_nova += "\tsub edx, 1\n";
+	linha_nova += "; verifica se ja fez a quantidade correta de iteracoes\n";
+	linha_nova += "\tsub edi, 1\n";
+	linha_nova += "\tjz fim_le_inteiro\n";
+	linha_nova += "\tjg calcula_num\n";
+linha_nova += "fim_le_inteiro:\n";
+    linha_nova += "\tpop ebp\n"; // guarda o valor do eax
+	linha_nova += "\tret\n";
+linha_nova += "troca_negativo:\n";
+    linha_nova += "; eh necessario remover um elemento da pilha, para remover corretamente na saida\n";
+    linha_nova += "\tpop ebp\n";
+	linha_nova += "\tmov eax, -1\n";
+	linha_nova += "\timul ebx\n";
+	linha_nova += "\tmov ebx, eax\n";
+	linha_nova += "\tjmp fim_le_inteiro";
+    return linha_nova;
 }

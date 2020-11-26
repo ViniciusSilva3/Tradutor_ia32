@@ -1,73 +1,89 @@
 section .text
 global _start
 _start:
-	push RESPONSE
-	push 10
-	call Ler_String
-	push RESPONSE
-	push 10
-	call Escrever_String
-	push RESPONSE2
-	push 1
-	call Ler_String
-	push RESPONSE2
-	push 1
-	call Escrever_String
+; le o numero em formato de string
+	mov eax, 3
+	mov ebx, 0
+	mov ecx, RESPONSE
+	mov edx, 5
+	int 80h
+	mov esi, 1
+; empurrar eax para ver a quantidade de iteracoes
+	sub eax, 1
+	push eax
+	push RESPONSE; empurra a posicao de memoria onde o numero esta armazenado
+	call le_inteiro
+; Recupera o numero em inteiro e escreve no lugar certo
+	mov [RESPONSE], ebx
+
+; le o numero em formato de string
+	mov eax, 3
+	mov ebx, 0
+	mov ecx, RESPONSE2
+	mov edx, 5
+	int 80h
+	mov esi, 1
+; empurrar eax para ver a quantidade de iteracoes
+	sub eax, 1
+	push eax
+	push RESPONSE2; empurra a posicao de memoria onde o numero esta armazenado
+	call le_inteiro
+; Recupera o numero em inteiro e escreve no lugar certo
+	mov [RESPONSE2], ebx
+
 	mov eax, 1
 	mov ebx, 0
 	int 80h
-Escrever_String:
+le_inteiro:
 	push ebp ;guarda o valor para pegar os parametros
+; deve receber a quantidade de iteracoes em edi
 	mov ebp, esp
-	mov esi, dword [ebp+12]
-	mov edi, [ebp + 8]
-	mov eax, 4
-	mov ebx, 1
-	mov ecx, esi
-	mov edx, edi
-	int 80h
+	mov edx, dword [ebp+8]
+	mov edi, dword[ebp+12]
+; deve receber a quantidade de iteracoes em edi
+; desloca para a leitura do ultimo digito
+	sub eax, 1
+	add edx, eax
+; esi vai armazenar se eh centena, dezena ou unidade
+calcula_num:
+; le o primeiro digito (mais significativo)
+	push edx
+	movzx eax, byte [edx]
+; verifica se o numero eh negativo
+	cmp eax, 0x2d
+; decidir o que fazer se for negativo
+	je troca_negativo
+	mov ecx, eax; transforma para o valor inteiro
+	sub ecx, 0x30
+	mov eax, ecx
+	mul esi
+; ebx vai armazenar o numero inteiro final
+	add ebx, eax
+; multiplica esi por 10
+	mov eax, 10
+	mul esi
+	mov esi, eax
+; recupera o valor da posicao de memoria e ajusta de acordo com a iteracao
+	pop edx
+	sub edx, 1
+; verifica se ja fez a quantidade correta de iteracoes
+	sub edi, 1
+	jz fim_le_inteiro
+	jg calcula_num
+fim_le_inteiro:
 	pop ebp
 	ret
-Ler_String:
-	push ebp ;guarda o valor para pegar os parametros
-	mov ebp, esp
-	mov esi, dword [ebp+12]
-	mov edi, [ebp + 8]
-	 ;faz a leitura da string
-	mov eax, 3
-	mov ebx, 0
-	mov ecx, esi
-	mov edx, edi
-	int 80h
-	add eax, 0x30
-	mov [input_string], eax
-	 ;imprime quantos caracteres foram lidos
-	mov eax, 4
-	mov ebx, 1
-	mov ecx, read_string_msg1
-	mov edx, str1_size
-	int 80h
-	mov eax, 4
-	mov ebx, 1
-	mov ecx, input_string
-	mov edx, 4
-	int 80h
-	mov eax, 4
-	mov ebx, 1
-	mov ecx, read_string_msg2
-	mov edx, str2_size
-	int 80h
+troca_negativo:
+; eh necessario remover um elemento da pilha, para remover corretamente na saida
 	pop ebp
-	ret
+	mov eax, -1
+	imul ebx
+	mov ebx, eax
+	jmp fim_le_inteiro
 
 section .bss
 RESPONSE resb 52
-RESPONSE2 resb 8
-input_string resb 4
+RESPONSE2 resb 52
 
 section .data
 UM dw 1
-read_string_msg1 db 'Foram lidos '
-str1_size EQU $-read_string_msg1
-read_string_msg2 db ' Caracteres', 0dh, 0ah
-str2_size EQU $-read_string_msg2

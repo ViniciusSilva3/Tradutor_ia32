@@ -1,10 +1,8 @@
 section text
-    s_input 10, response
-    s_output 10, response
-    c_input response2
-    c_output response2
+    input response
+    input response2
     stop
 section data
 response: space 12
-response2: space 1
+response2: space 12
 um: const 1
