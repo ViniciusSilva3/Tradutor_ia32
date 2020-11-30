@@ -1,8 +1,20 @@
-section text
-    input response
-    output response
-    stop
-section data
-response: space 12
-response2: space 12
-um: const 1
+TrIANGuLO: 
+			EQU 1
+SECTION TEXT	;linha dos dados
+		INPUT		B
+		INPUT		H
+		LOAD		B
+		MuL		H
+		IF TRIANGULO
+		DIV		DOIS
+		STORE		R
+		OUTPUT	R
+		STOP
+SECTION DATA
+	B:		
+		SPACE
+	H:		
+		SPACE
+	R:		
+	SPACE 5 
+	DOIS:	CONST		2

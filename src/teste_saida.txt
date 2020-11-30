@@ -4,21 +4,52 @@ _start:
 ; le o numero em formato de string
 	mov eax, 3
 	mov ebx, 0
-	mov ecx, RESPONSE
+	mov ecx, B
 	mov edx, 5
 	int 80h
 	mov esi, 1
 ; empurrar eax para ver a quantidade de iteracoes
 	sub eax, 1
 	push eax
-	push RESPONSE; empurra a posicao de memoria onde o numero esta armazenado
+	push B; empurra a posicao de memoria onde o numero esta armazenado
 	call le_inteiro
 ; Recupera o numero em inteiro e escreve no lugar certo
-	mov [RESPONSE], ebx
+	mov [B], ebx
 
-	push RESPONSE]
+; le o numero em formato de string
+	mov eax, 3
+	mov ebx, 0
+	mov ecx, H
+	mov edx, 5
+	int 80h
+	mov esi, 1
+; empurrar eax para ver a quantidade de iteracoes
+	sub eax, 1
+	push eax
+	push H; empurra a posicao de memoria onde o numero esta armazenado
+	call le_inteiro
+; Recupera o numero em inteiro e escreve no lugar certo
+	mov [H], ebx
+
+; faz load
+	mov eax, [B]
+; faz multiplicacao
+	mov edx, 0 ; limpa edx de execucoes anteriores para verificar overflow
+	imul DWORD[H]
+	cmp edx, 0
+	jnz mult_com_ovflw
+
+; faz divisao
+	mov edx, 0
+	idiv DWORD[DOIS]
+
+; faz store
+	mov [R], eax
+	push eax
+	push R
 	call escreve_inteiro
-
+	pop eax
+	pop eax
 	mov eax, 1
 	mov ebx, 0
 	int 80h
@@ -162,12 +193,23 @@ fim:
 	int 80h
 	pop ebp
 ret
+mult_com_ovflw:	;imprime msg de ovflw
+	mov eax, 4
+	mov ebx, 1
+	mov ecx, msg_ovflw
+	mov edx, msg_ovflw_size
+	int 80h
+
 
 section .bss
-RESPONSE resb 52
-RESPONSE2 resb 52
+B resb 4
+H resb 4
+R resb 24
+imprime_char resb 1
 
 section .data
-UM dq 1
+DOIS dq 2
 new_line db 0dh, 0ah
 new_line_size EQU $-new_line
+msg_ovflw db 'Multiplicacao com Overflow', 0dh, 0ah
+msg_ovflw_size EQU $-msg_ovflw

@@ -28,7 +28,7 @@ vector<string> tradutor::traduz_para_ia32()
     string linha_atual_traduzida;
     string linha;
     vector<string> tokens;
-    int flag_rotulo, flag_inputstr=0, flag_inputc=0, flag_outputstr = 0, flag_input_int=0, flag_output_int =0;
+    int flag_rotulo, flag_inputstr=0, flag_inputc=0, flag_outputstr = 0, flag_input_int=0, flag_output_int =0, flag_mult = 0;
     ifstream MyFile("preprocess.txt");
     while(getline(MyFile, linha)) {
 
@@ -67,16 +67,25 @@ vector<string> tradutor::traduz_para_ia32()
             linha_atual_traduzida += "_start:";
         }
         if( tokens[0+flag_rotulo].compare("ADD") == 0 ) {
+            linha_atual_traduzida += "; faz adicao\n";
             linha_atual_traduzida += "\tadd eax, [" + tokens[1+flag_rotulo] + "]";
         }
         if( tokens[0+flag_rotulo].compare("SUB") == 0 ) {
+            linha_atual_traduzida += "; faz subtracao\n";
             linha_atual_traduzida += "\tsub eax, [" + tokens[1+flag_rotulo]+ "]";
         }
         if( tokens[0+flag_rotulo].compare("DIV")== 0 ) {
-            linha_atual_traduzida += "testando com DIV";
+            linha_atual_traduzida += "; faz divisao\n";
+            linha_atual_traduzida += "\tmov edx, 0\n";
+            linha_atual_traduzida += "\tidiv DWORD[" + tokens[1+flag_rotulo]+ "]\n";
         }
-        if( tokens[0+flag_rotulo].compare("MULT")== 0 ) {
-            linha_atual_traduzida += "testando com MULT";
+        if( tokens[0+flag_rotulo].compare("MUL")== 0 ) {
+            flag_mult = 1;
+            linha_atual_traduzida += "; faz multiplicacao\n";
+            linha_atual_traduzida += "\tmov edx, 0 ; limpa edx de execucoes anteriores para verificar overflow\n";
+            linha_atual_traduzida += "\timul DWORD[" + tokens[1+flag_rotulo]+ "]\n";
+            linha_atual_traduzida += "\tcmp edx, 0\n";
+            linha_atual_traduzida += "\tjnz mult_com_ovflw\n";
         }
 
         if( tokens[0+flag_rotulo].compare("JMP")== 0 ) {
@@ -96,9 +105,11 @@ vector<string> tradutor::traduz_para_ia32()
             linha_atual_traduzida += "\tmov " + tokens[2+flag_rotulo] +", " +tokens[1+flag_rotulo];
         }
         if( tokens[0+flag_rotulo].compare("LOAD")== 0 ) {
+            linha_atual_traduzida += "; faz load\n";
             linha_atual_traduzida += "\tmov eax, [" + tokens[1+flag_rotulo] + "]";
         }
         if( tokens[0+flag_rotulo].compare("STORE")== 0 ) {
+            linha_atual_traduzida += "; faz store\n";
             linha_atual_traduzida += "\tmov [" + tokens[1+flag_rotulo] + "], eax";
         }
         if( tokens[0+flag_rotulo].compare("INPUT")== 0 ) {
@@ -122,9 +133,12 @@ vector<string> tradutor::traduz_para_ia32()
         }
         if( tokens[0+flag_rotulo].compare("OUTPUT")== 0 ) {
             flag_output_int = 1;
+            linha_atual_traduzida += "\tpush eax\n";
             linha_atual_traduzida += "\tpush " + tokens[1+flag_rotulo]+"\n" ; // guarda o valor do eax
             
             linha_atual_traduzida += "\tcall escreve_inteiro\n";
+            linha_atual_traduzida += "\tpop eax\n";
+            linha_atual_traduzida += "\tpop eax";
             
             
         }
@@ -162,6 +176,7 @@ vector<string> tradutor::traduz_para_ia32()
             linha_atual_traduzida += "\tpush " + tokens[1+flag_rotulo] + "\n"; // guarda o valor do eax
             linha_atual_traduzida += "\tcall Escrever_String";
             
+            
         }
         
 
@@ -187,6 +202,17 @@ vector<string> tradutor::traduz_para_ia32()
         linha_atual_traduzida = escreve_output_int();
         linhasTextoFinal.push_back(linha_atual_traduzida);
     }
+    if(flag_mult) {
+        linha_atual_traduzida = "";
+        linha_atual_traduzida += "mult_com_ovflw:";
+            linha_atual_traduzida += "\t;imprime msg de ovflw\n";
+            linha_atual_traduzida += "\tmov eax, 4\n";
+            linha_atual_traduzida += "\tmov ebx, 1\n";
+            linha_atual_traduzida += "\tmov ecx, msg_ovflw\n";
+            linha_atual_traduzida += "\tmov edx, msg_ovflw_size\n";
+            linha_atual_traduzida += "\tint 80h\n";
+            linhasTextoFinal.push_back(linha_atual_traduzida);
+    }
 
     // lembrar de no final adicionar .data e .bss
     if( section_bss.size() != 0) {
@@ -203,6 +229,8 @@ vector<string> tradutor::traduz_para_ia32()
         linhasTextoFinal.push_back("input_string resb 4");
         linhasTextoFinal.push_back("imprime_char resb 1");
     }
+    // sempre adiciona essa linha a bss
+    linhasTextoFinal.push_back("imprime_char resb 1");
     if( section_data.size() != 0) {
         linhasTextoFinal.push_back("\nsection .data");
         for(int i=0; i<section_data.size(); i++) {
@@ -223,6 +251,8 @@ vector<string> tradutor::traduz_para_ia32()
         linhasTextoFinal.push_back("new_line_size EQU $-new_line");
 
     }
+    linhasTextoFinal.push_back("msg_ovflw db 'Multiplicacao com Overflow', 0dh, 0ah");
+    linhasTextoFinal.push_back("msg_ovflw_size EQU $-msg_ovflw");
     return linhasTextoFinal;
 }
 
